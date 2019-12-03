@@ -1,0 +1,11 @@
+{
+  "name": "library-management-system-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "tuql --db ./db.sqlite"
+  },
+  "dependencies": {
+    "tuql": "^1.7.0"
+  }
+}
