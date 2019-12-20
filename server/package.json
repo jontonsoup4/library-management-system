@@ -1,11 +1,13 @@
 {
   "name": "library-management-system-server",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "scripts": {
-    "start": "tuql --db ./db.sqlite"
+    "start": "node index.js"
   },
   "dependencies": {
-    "tuql": "^1.7.0"
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "postgraphile": "^4.5.5"
   }
 }

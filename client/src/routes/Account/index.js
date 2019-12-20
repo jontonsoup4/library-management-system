@@ -17,11 +17,13 @@ import { useMutation, useQuery } from '@apollo/react-hooks';
 const QUERY = gql`
   query ($userId: Int!){
     user(id: $userId) {
-      transactions(where: { checkedIn: null }) {
+      transactions {
         book {
-          id
           title
         }
+        bookId
+        checkedIn
+        checkedOut
         dueDate
         id
       }
@@ -46,7 +48,15 @@ const outstandingHeaders = [
   'Check In'
 ];
 
-export default () => {
+const historyHeaders = [
+  'Book',
+  'Checked Out',
+  'Due Date',
+  'Checked In',
+];
+
+export default (props) => {
+  const { history } = props;
   const [checked, setChecked] = useState(new Set([]));
   const [open, setOpen] = useState(false);
   const [checkInBook] = useMutation(CHECK_IN_BOOK);
@@ -62,7 +72,7 @@ export default () => {
     const checkedInBy = constants.DEFAULT_USER_ID;
     Promise.all(Array.from(checked).map((id) => (
       checkInBook({
-        variables: { bookId: (user.transactions.find((t) => t.id === id)).book.id, checkedIn, checkedInBy, id },
+        variables: { bookId: (user.transactions.find((t) => t.id === id)).bookId, checkedIn, checkedInBy, id },
       })
     )))
       .then(() => {
@@ -115,6 +125,31 @@ export default () => {
     )
   };
 
+  const HistoryRow = (props) => {
+    const {
+      book: { title },
+      bookId,
+      checkedIn,
+      checkedOut,
+      dueDate,
+      id,
+    } = props;
+
+    const bookUrl = constants.ROUTES.VIEW_BOOK.replace(':bookId', `${bookId}`);
+    const goToBook = () => {
+      history.push(bookUrl);
+    };
+
+    return (
+      <TableRow key={id} hover href={bookUrl} onClick={goToBook} style={{ cursor: 'pointer' }}>
+        <TableCell>{title}</TableCell>
+        <TableCell>{moment(parseInt(checkedOut)).format('MM/DD/YYYY')}</TableCell>
+        <TableCell>{moment(parseInt(dueDate)).format('MM/DD/YYYY')}</TableCell>
+        <TableCell>{moment(parseInt(checkedIn)).format('MM/DD/YYYY')}</TableCell>
+      </TableRow>
+    )
+  };
+
   const booksToBeCheckedIn = Array.from(checked)
     .map((c) => (user.transactions.find((t) => t.id === c)).book.title);
 
@@ -131,39 +166,65 @@ export default () => {
 
   return (
     <div>
-      <Typography
-        align='center'
-        component='h2'
-        gutterBottom
-        variant='h4'
-      >
-        Outstanding Books
-      </Typography>
-      <Table size='small'>
-        <TableHead>
-          <TableRow>
-            {outstandingHeaders.map((text) => (
-              <TableCell key={text}>{text}</TableCell>
-            ))}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {transactions.map((row) => (
-            <OutstandingRow key={row.id} {...row} />
-          ))}
-        </TableBody>
-      </Table>
-      <Box my={1}>
-        <Button
-          color='primary'
-          disabled={booksToBeCheckedIn.length < 1}
-          fullWidth
-          onClick={openDialog}
-          variant='contained'
+      <Box>
+        <Typography
+          align='center'
+          component='h2'
+          gutterBottom
+          variant='h4'
         >
-          Check In
-        </Button>
+          Outstanding Books
+        </Typography>
+        <Table size='small'>
+          <TableHead>
+            <TableRow>
+              {outstandingHeaders.map((text) => (
+                <TableCell key={text}>{text}</TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {transactions.map((row) => !row.checkedIn && (
+              <OutstandingRow key={row.id} {...row} />
+            ))}
+          </TableBody>
+        </Table>
+        <Box my={1}>
+          <Button
+            color='primary'
+            disabled={booksToBeCheckedIn.length < 1}
+            fullWidth
+            onClick={openDialog}
+            variant='contained'
+          >
+            Check In
+          </Button>
+        </Box>
       </Box>
+     <Box mt={4}>
+       <Typography
+         align='center'
+         component='h2'
+         gutterBottom
+         variant='h4'
+       >
+         History
+       </Typography>
+       <Table size='small'>
+         <TableHead>
+           <TableRow>
+             {historyHeaders.map((text) => (
+               <TableCell key={text}>{text}</TableCell>
+             ))}
+           </TableRow>
+         </TableHead>
+         <TableBody>
+           {transactions.map((row) => row.checkedIn && (
+             <HistoryRow key={row.id} {...row} />
+           ))}
+         </TableBody>
+       </Table>
+     </Box>
       <ConfirmDialog
         onClose={closeDialog}
         onConfirm={checkIn}

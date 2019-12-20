@@ -41,7 +41,7 @@ export default (props) => {
       title,
     } = props;
 
-    const bookUrl = constants.ADMIN_ROUTES.EDIT_BOOK.replace(':bookId', id);
+    const bookUrl = constants.ADMIN_ROUTES.EDIT_BOOK.replace(':bookId', `${id}`);
     const goToBook = () => {
       history.push(bookUrl);
     };

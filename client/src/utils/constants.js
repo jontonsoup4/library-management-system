@@ -18,6 +18,7 @@ export const ADMIN_ROUTES = {
   ADD_BOOK: '/admin/add-book',
   EDIT_BOOK: '/admin/books/:bookId',
   MANAGE_BOOKS: '/admin/books',
+  HISTORY: '/admin/history',
 };
 
 export const COLORS = {

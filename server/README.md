@@ -1,6 +1,6 @@
 # Server
 
-A simple graphql server based on a portable sqlite database
+A simple graphql server using postgraphile
 
 ## Installation
 ```shell script
@@ -13,4 +13,5 @@ yarn
 yarn start 
 # or npm start
 # accessible at localhost:4000/graphql
+# you can poke around the database via graphql on localhost:4000/graphiql
 ```

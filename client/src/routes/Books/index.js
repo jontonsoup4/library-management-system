@@ -12,20 +12,24 @@ import { useQuery } from '@apollo/react-hooks';
 
 const QUERY = gql`
   {
-    books {
-      coverUrl
-      id
-      status {
-        status
+    allBooks {
+      edges {
+        node {
+          coverUrl
+          id
+          statusByStatusId {
+            status
+          }
+          title
+        }
       }
-      title
     }
   }
 `;
 
 export default () => {
   const { data, loading } = useQuery(QUERY);
-  const { books } = loading ? {} : data;
+  const { allBooks } = loading ? {} : data;
 
   const [query, setQuery] = useState('');
   const [appliedFilter, setAppliedFilter] = useState('');
@@ -67,15 +71,17 @@ export default () => {
           Search
         </Button>
       </Box>
-      {books && (
+      {allBooks && (
         <Grid container spacing={2}>
-          {books.filter((b) => b.title.toLowerCase().includes(appliedFilter.toLowerCase())).map((book) => (
-            <Grid item key={book.id} xs={4} sm={3}>
-              <Link to={constants.ROUTES.VIEW_BOOK.replace(':bookId', book.id)}>
-                <Book book={book} />
-              </Link>
-            </Grid>
-          ))}
+          {allBooks.edges
+            .filter((b) => b.node.title.toLowerCase().includes(appliedFilter.toLowerCase()))
+            .map(({ node }) => (
+              <Grid item key={node.id} xs={4} sm={3}>
+                <Link to={constants.ROUTES.VIEW_BOOK.replace(':bookId', `${node.id}`)}>
+                  <Book book={node} />
+                </Link>
+              </Grid>
+            ))}
         </Grid>
       )}
     </div>

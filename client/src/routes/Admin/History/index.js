@@ -1,3 +1,6 @@
+// TODO: create history table. Use the same history table as book history, but add book titled
+
+
 import * as constants from 'utils/constants';
 import Box from '@material-ui/core/Box';
 import Button from '@material-ui/core/Button';
@@ -289,24 +292,24 @@ export default (props) => {
           />
         </Grid>
       </Grid>
-      {values['transactions'].length > 0 && (
-        <Box mb={2}>
-          <Table size='small'>
-            <TableHead>
-              <TableRow>
-                {headers.map((text) => (
-                  <TableCell key={text}>{text}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
+      <Box mb={2}>
+        <Table size='small'>
+          <TableHead>
+            <TableRow>
+              {headers.map((text) => (
+                <TableCell key={text}>{text}</TableCell>
+              ))}
+            </TableRow>
+          </TableHead>
+          {values['transactions'].length > 0 && (
             <TableBody>
               {values['transactions'].map((row) => (
                 <TransactionRow key={row.id} {...row} />
               ))}
             </TableBody>
-          </Table>
-        </Box>
-      )}
+          )}
+        </Table>
+      </Box>
       <Box my={1}>
         {isNewBook ? (
           <Button
