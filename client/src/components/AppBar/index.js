@@ -33,7 +33,8 @@ const links = [
 
 const adminLinks = [
   { text: 'Manage Books', url: constants.ADMIN_ROUTES.MANAGE_BOOKS },
-  { text: 'Add A Book', url: constants.ADMIN_ROUTES.ADD_BOOK }
+  { text: 'Add A Book', url: constants.ADMIN_ROUTES.ADD_BOOK },
+  { text: 'History', url: constants.ADMIN_ROUTES.HISTORY }
 ];
 
 export default (props) => {

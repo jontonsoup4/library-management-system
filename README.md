@@ -4,12 +4,6 @@
 
 Installation steps can be found in the `client` and `server` folders.
 
-The whole app can alternatively be spun up as a production ready build using a single command with Docker:
-```shell script
-docker-compose up
-# then visit localhost:3000
-```
-
 ## Routes
 * _/admin_ - admin routes
     * _/add-book_ - add book

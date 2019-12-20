@@ -11,39 +11,44 @@ import { useMutation, useQuery } from '@apollo/react-hooks';
 
 
 const QUERY = gql`
-  query Book($bookId: Int) {
-    book(id: $bookId) {
-      author,
-      coverUrl,
-      description,
-      isbn,
-      pageCount,
-      releaseDate,
-      status {
+  query Book($bookId: UUID!) {
+    bookById(id: $bookId) {
+      author
+      coverUrl
+      description
+      isbn
+      pageCount
+      releaseDate
+      statusByStatusId {
         status
       }
-      title,
+      title
     }
   }
 `;
 
 const CHECK_OUT_BOOK = gql`
-  mutation ($bookId:Int, $userId:Int, $dueDate:String, $checkedOut:String, $checkedOutBy:Int) {
-    createTransaction(bookId:$bookId, userId:$userId, dueDate:$dueDate, checkedOut:$checkedOut, checkedOutBy:$checkedOutBy) {
-      dueDate
+  mutation($transaction: TransactionInput!, $bookId: UUID!) {
+    createTransaction(input: { transaction: $transaction }) {
+      clientMutationId
     }
-    updateBook(id:$bookId, statusId: 2) {
-      id
+    updateBookById(
+      input: {
+        id: $bookId,
+        bookPatch: { statusId: "971b1e2b-3b41-4f8c-9604-670e8548f3b9" }
+      }
+    ) {
+      clientMutationId
     }
   }
 `;
 
 export default (props) => {
   const { match: { params: { bookId } } } = props;
-  const { data, loading, refetch } = useQuery(QUERY, { variables: { bookId: parseInt(bookId) }});
+  const { data, loading, refetch } = useQuery(QUERY, { variables: { bookId }});
   const [checkOutBook] = useMutation(CHECK_OUT_BOOK);
-  const { book = {} } = loading ? {} : data;
   const [open, setOpen] = useState(false);
+  const { bookById: book = {} } = loading ? {} : data;
 
   const {
     author,
@@ -52,16 +57,16 @@ export default (props) => {
     isbn,
     pageCount,
     releaseDate,
-    status: s,
+    statusByStatusId,
     title,
   } = book;
 
-  const status = s ? s.status : '';
+  const status = statusByStatusId ? statusByStatusId.status : '';
 
   const fields = [
     {text: 'Author', value: author},
     {text: 'Pages', value: pageCount},
-    {text: 'Released', value: moment(parseInt(releaseDate)).format('MM/DD/YYYY')},
+    {text: 'Released', value: releaseDate ? moment(releaseDate).format('MM/DD/YYYY') : ''},
     {text: 'ISBN', value: isbn},
     {text: 'Status', value: status},
   ];
@@ -75,17 +80,19 @@ export default (props) => {
   };
 
   const handleConfirm = () => {
-    // TODO: add history row and update book status
     checkOutBook({
       variables: {
-        bookId: parseInt(bookId),
-        userId: constants.DEFAULT_USER_ID,
-        dueDate: moment().add(constants.DEFAULT_CHECK_OUT_DAYS, 'days').format('x'),
-        checkedOut: moment().format('x'),
-        checkedOutBy: constants.DEFAULT_USER_ID,
+        bookId,
+        transaction: {
+          bookId,
+          checkedOut: moment().format(),
+          checkedOutBy: constants.DEFAULT_USER_ID,
+          dueDate: moment().add(constants.DEFAULT_CHECK_OUT_DAYS, 'days').format(),
+          userId: constants.DEFAULT_USER_ID,
+        },
       }
     })
-      .then(() => refetch({ bookId: parseInt(bookId) }))
+      .then(() => refetch({ bookId }))
       .then(closeDialog);
   };
 

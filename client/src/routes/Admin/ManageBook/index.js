@@ -21,59 +21,92 @@ import { KeyboardDatePicker } from '@material-ui/pickers';
 import { useMutation, useQuery } from '@apollo/react-hooks';
 
 const CREATE_BOOK = gql`
-  mutation ($title:String, $author:String, $isbn:String, $description:String, $pageCount:Int, $releaseDate:String, $statusId:Int) {
-    createBook(title:$title, author:$author, isbn:$isbn, description:$description, pageCount:$pageCount, releaseDate:$releaseDate, coverUrl:"/images/books/placeholder.png", statusId:$statusId) {
-      title
+  mutation($book: BookInput!) {
+    createBook(input: { book: $book }) {
+      clientMutationId
     }
   }
 `;
 
 const EDIT_BOOK = gql`
-  mutation ($id:Int, $title:String, $author:String, $isbn:String, $description:String, $pageCount:Int, $releaseDate:String, $statusId:Int) {
-    updateBook(id:$id, title:$title, author:$author, isbn:$isbn, description:$description, pageCount:$pageCount, releaseDate:$releaseDate, coverUrl:"/images/books/placeholder.png", statusId:$statusId) {
-      id
+  mutation($book: BookPatch!, $bookId: UUID!) {
+    updateBookById(input: { id: $bookId, bookPatch: $book }) {
+      clientMutationId
     }
   }
+
 `;
 
 const DELETE_BOOK = gql`
-  mutation($id:Int!) {
-    deleteBook(id:$id) {
-      success
+  mutation($id: UUID!) {
+    deleteBookById(input: { id: $id }) {
+      clientMutationId
     }
   }
 `;
 
 const QUERY = gql`
-  query Book($bookId: Int) {
-    book(id: $bookId) {
-      author,
-      coverUrl,
-      description,
-      isbn,
-      pageCount,
-      releaseDate,
+  query Book($bookId: UUID!) {
+    bookById(id: $bookId) {
+      author
+      coverUrl
+      description
+      isbn
+      pageCount
+      releaseDate
       statusId
-      title,
-      
-      transactions {
+      title
+  
+      transactionsByBookId(orderBy: CHECKED_OUT_DESC) {
+        edges {
+          node {
+            id
+            checkedOut
+            checkedIn
+            dueDate
+            userByCheckedInBy {
+              firstName
+              id
+              lastName
+            }
+            userByCheckedOutBy {
+              firstName
+              id
+              lastName
+            }
+            userByUserId {
+              firstName
+              id
+              lastName
+            }
+          }
+        }
+      }
+      statusByStatusId {
         id
-        checkedOut
-        checkedOutBy
-        checkedIn
-        checkedInBy
-        dueDate
-        user {
-          firstName
-          lastName
+        status
+      }
+    }
+    allStatuses {
+      edges {
+        node {
           id
-          email
+          status
         }
       }
     }
-    statuses {
-      id
-      status
+  }
+`;
+
+const STATUSES = gql`
+ {
+   allStatuses {
+      edges {
+        node {
+          id
+          status
+        }
+      }
     }
   }
 `;
@@ -84,6 +117,7 @@ const fields = [
 ];
 
 const headers = [
+  'User',
   'Checked Out By',
   'Checked Out',
   'Due Date',
@@ -106,45 +140,45 @@ const INITIAL_STATE = {
 const TransactionRow = (props) => {
   const {
     checkedIn,
-    checkedInBy,
     checkedOut,
     dueDate,
     id,
-    user: {
-      email,
-      firstName,
-      lastName,
-    }
+    userByCheckedInBy,
+    userByCheckedOutBy,
+    userByUserId,
   } = props;
+
+  const formatName = (user) => `${user.firstName} ${user.lastName}`;
 
   return (
     <TableRow key={id}>
-      <TableCell>{`${firstName} ${lastName} (${email})`}</TableCell>
-      <TableCell>{moment(parseInt(checkedOut)).format('MM/DD/YYYY')}</TableCell>
-      <TableCell>{moment(parseInt(dueDate)).format('MM/DD/YYYY')}</TableCell>
-      <TableCell>{checkedInBy ? `${firstName} ${lastName} (${email})` : ''}</TableCell>
-      <TableCell>{checkedIn ? moment(parseInt(checkedIn)).format('MM/DD/YYYY') : ''}</TableCell>
+      <TableCell>{userByUserId ? formatName(userByUserId) : ''}</TableCell>
+      <TableCell>{userByCheckedOutBy ? formatName(userByCheckedOutBy) : ''}</TableCell>
+      <TableCell>{moment(checkedOut).format('MM/DD/YYYY')}</TableCell>
+      <TableCell>{moment(dueDate).format('MM/DD/YYYY')}</TableCell>
+      <TableCell>{userByCheckedInBy ? formatName(userByCheckedInBy) : ''}</TableCell>
+      <TableCell>{checkedIn ? moment(checkedIn).format('MM/DD/YYYY') : ''}</TableCell>
     </TableRow>
   )
 };
 
 export default (props) => {
-  const { history, match: { params: { bookId: b } } } = props;
-  const bookId = parseInt(b);
+  const { history, match: { params: { bookId } } } = props;
   const [values, setValues] = useState(INITIAL_STATE);
   const [edited, setEdited] = useState(false);
   const [open, setOpen] = useState(false);
   const [createBook] = useMutation(CREATE_BOOK);
   const [editBook] = useMutation(EDIT_BOOK);
   const [deleteBook] = useMutation(DELETE_BOOK);
-  const { data, refetch } = useQuery(QUERY, {
+  const { data, refetch } = useQuery(bookId ? QUERY : STATUSES, {
     variables: { bookId: bookId },
     onCompleted: (res) => {
-      if (!res.book) {
+      if (!res) {
         history.replace(constants.ADMIN_ROUTES.ADD_BOOK);
-      } else {
-        const newValues = { ...res.book};
-        newValues['releaseDate'] = moment(parseInt(newValues['releaseDate']));
+      } else if (res.bookById) {
+        const { bookById } = res;
+        const newValues = { ...bookById };
+        newValues['transactions'] = bookById.transactionsByBookId ? bookById.transactionsByBookId.edges : [];
         setValues(newValues);
       }
     },
@@ -164,7 +198,7 @@ export default (props) => {
     setOpen(false);
   };
 
-  const { statuses = [] } = data || {};
+  const { allStatuses } = data || {};
   const isNewBook = !bookId;
 
   const handleDeleteBook = () => {
@@ -178,22 +212,36 @@ export default (props) => {
 
   const update = () => {
     const action = isNewBook ? createBook : editBook;
+    const {
+      author,
+      description,
+      isbn,
+      pageCount,
+      releaseDate,
+      statusId,
+      title,
+    } = values;
     const variables = {
-      ...values,
-      pageCount: parseInt(values.pageCount),
-      releaseDate: values.releaseDate ? values.releaseDate.format('x') : '',
+      book: {
+        author,
+        coverUrl: '/images/books/placeholder.png',
+        description,
+        isbn,
+        pageCount: parseInt(pageCount),
+        releaseDate: moment(releaseDate).format(),
+        statusId,
+        title,
+      },
+      bookId,
     };
+
     if (!isNewBook) {
       variables.id = bookId;
 
     }
     action({ variables })
       .then(() => refetch({ bookId }))
-      .then((res) => {
-        const newValues = { ...res.data.book};
-        newValues['releaseDate'] = moment(parseInt(newValues['releaseDate']));
-        setEdited(false);
-        setValues(newValues);
+      .then(() => {
         history.push(constants.ADMIN_ROUTES.MANAGE_BOOKS);
       });
   };
@@ -270,8 +318,8 @@ export default (props) => {
               onChange={updateValue('statusId')}
               value={values['statusId'] || ''}
             >
-              {statuses.map((s) => (
-                <MenuItem key={s.id} value={s.id}>{s.status}</MenuItem>
+              {allStatuses && allStatuses.edges.map(({ node }) => (
+                <MenuItem key={node.id} value={node.id}>{node.status}</MenuItem>
               ))}
             </Select>
           </FormControl>
@@ -300,8 +348,8 @@ export default (props) => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {values['transactions'].map((row) => (
-                <TransactionRow key={row.id} {...row} />
+              {values['transactions'].map(({ node }) => (
+                <TransactionRow key={node.id} {...node} />
               ))}
             </TableBody>
           </Table>

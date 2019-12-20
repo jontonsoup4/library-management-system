@@ -15,29 +15,38 @@ import { gql } from 'apollo-boost';
 import { useMutation, useQuery } from '@apollo/react-hooks';
 
 const QUERY = gql`
-  query ($userId: Int!){
-    user(id: $userId) {
-      transactions {
-        book {
-          title
+  query($userId: UUID!) {
+    userById(id: $userId) {
+      transactionsByUserId(orderBy: CHECKED_OUT_DESC) {
+        edges {
+          node {
+            bookByBookId {
+              id
+              title
+            }
+            checkedIn
+            checkedOut
+            dueDate
+            id
+          }
         }
-        bookId
-        checkedIn
-        checkedOut
-        dueDate
-        id
       }
     }
   }
 `;
 
 const CHECK_IN_BOOK = gql`
-  mutation ($id:Int, $checkedIn:String, $checkedInBy:Int, $bookId:Int) {
-    updateTransaction(id: $id, checkedIn: $checkedIn, checkedInBy: $checkedInBy) {
-      id
+  mutation($id: UUID!, $bookId: UUID!, $transaction: TransactionPatch!) {
+    updateTransactionById(input: { transactionPatch: $transaction, id: $id }) {
+      clientMutationId
     }
-    updateBook(id:$bookId, statusId:1) {
-      id
+    updateBookById(
+      input: {
+        id: $bookId
+        bookPatch: { statusId: "fc7553a6-e2d7-4c29-a3a8-eb8d8c7b9527" }
+      }
+    ) {
+      clientMutationId
     }
   }
 `;
@@ -64,15 +73,20 @@ export default (props) => {
   const { data, loading, refetch } = useQuery(QUERY, {
     variables: { userId: constants.DEFAULT_USER_ID },
   });
-  const { user = {} } = loading ? {} : data;
-  const { transactions = [] } = user;
+  const { userById: user = {} } = loading ? {} : data;
+  const transactions = user.transactionsByUserId ? user.transactionsByUserId.edges : [];
 
   const checkIn = () => {
-    const checkedIn = moment().format('x');
-    const checkedInBy = constants.DEFAULT_USER_ID;
     Promise.all(Array.from(checked).map((id) => (
       checkInBook({
-        variables: { bookId: (user.transactions.find((t) => t.id === id)).bookId, checkedIn, checkedInBy, id },
+        variables: {
+          bookId: (transactions.find((t) => t.node.id === id)).node.bookByBookId.id,
+          id,
+          transaction: {
+            checkedIn: moment().format(),
+            checkedInBy: constants.DEFAULT_USER_ID,
+          },
+        },
       })
     )))
       .then(() => {
@@ -92,7 +106,7 @@ export default (props) => {
 
   const OutstandingRow = (props) => {
     const {
-      book: { title },
+      bookByBookId: { title },
       dueDate,
       id,
     } = props;
@@ -113,7 +127,7 @@ export default (props) => {
         <TableCell>
           {title}
         </TableCell>
-        <TableCell>{moment(parseInt(dueDate)).format('MM/DD/YYYY')}</TableCell>
+        <TableCell>{moment(dueDate).format('MM/DD/YYYY')}</TableCell>
         <TableCell>
           <Checkbox
             checked={isChecked}
@@ -127,8 +141,7 @@ export default (props) => {
 
   const HistoryRow = (props) => {
     const {
-      book: { title },
-      bookId,
+      bookByBookId: { id: bookId, title },
       checkedIn,
       checkedOut,
       dueDate,
@@ -143,15 +156,15 @@ export default (props) => {
     return (
       <TableRow key={id} hover href={bookUrl} onClick={goToBook} style={{ cursor: 'pointer' }}>
         <TableCell>{title}</TableCell>
-        <TableCell>{moment(parseInt(checkedOut)).format('MM/DD/YYYY')}</TableCell>
-        <TableCell>{moment(parseInt(dueDate)).format('MM/DD/YYYY')}</TableCell>
-        <TableCell>{moment(parseInt(checkedIn)).format('MM/DD/YYYY')}</TableCell>
+        <TableCell>{moment(checkedOut).format('MM/DD/YYYY')}</TableCell>
+        <TableCell>{moment(dueDate).format('MM/DD/YYYY')}</TableCell>
+        <TableCell>{moment(checkedIn).format('MM/DD/YYYY')}</TableCell>
       </TableRow>
     )
   };
 
   const booksToBeCheckedIn = Array.from(checked)
-    .map((c) => (user.transactions.find((t) => t.id === c)).book.title);
+    .map((c) => (transactions.find((t) => t.node.id === c)).node.bookByBookId.title);
 
   const joinBooks = (books) => {
     const l = books.length;
@@ -163,68 +176,82 @@ export default (props) => {
     books[l - 1] = `and ${books[l - 1]}`;
     return books.join(', ');
   };
+  let outstandingBooks = [];
+  let historicalBooks = [];
+  for (let i = 0; i < transactions.length; i++) {
+    const transaction = transactions[i];
+    if (transaction.node.checkedIn) {
+      historicalBooks.push(transaction);
+    } else {
+      outstandingBooks.push(transaction);
+    }
+  }
 
   return (
     <div>
-      <Box>
-        <Typography
-          align='center'
-          component='h2'
-          gutterBottom
-          variant='h4'
-        >
-          Outstanding Books
-        </Typography>
-        <Table size='small'>
-          <TableHead>
-            <TableRow>
-              {outstandingHeaders.map((text) => (
-                <TableCell key={text}>{text}</TableCell>
-              ))}
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {transactions.map((row) => !row.checkedIn && (
-              <OutstandingRow key={row.id} {...row} />
-            ))}
-          </TableBody>
-        </Table>
-        <Box my={1}>
-          <Button
-            color='primary'
-            disabled={booksToBeCheckedIn.length < 1}
-            fullWidth
-            onClick={openDialog}
-            variant='contained'
+      {outstandingBooks.length > 0 && (
+        <Box>
+          <Typography
+            align='center'
+            component='h2'
+            gutterBottom
+            variant='h4'
           >
-            Check In
-          </Button>
+            Outstanding Books
+          </Typography>
+          <Table size='small'>
+            <TableHead>
+              <TableRow>
+                {outstandingHeaders.map((text) => (
+                  <TableCell key={text}>{text}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {outstandingBooks.map(({ node }) => (
+                <OutstandingRow key={node.id} {...node} />
+              ))}
+            </TableBody>
+          </Table>
+          <Box my={1}>
+            <Button
+              color='primary'
+              disabled={booksToBeCheckedIn.length < 1}
+              fullWidth
+              onClick={openDialog}
+              variant='contained'
+            >
+              Check In
+            </Button>
+          </Box>
         </Box>
-      </Box>
-     <Box mt={4}>
-       <Typography
-         align='center'
-         component='h2'
-         gutterBottom
-         variant='h4'
-       >
-         History
-       </Typography>
-       <Table size='small'>
-         <TableHead>
-           <TableRow>
-             {historyHeaders.map((text) => (
-               <TableCell key={text}>{text}</TableCell>
-             ))}
-           </TableRow>
-         </TableHead>
-         <TableBody>
-           {transactions.map((row) => row.checkedIn && (
-             <HistoryRow key={row.id} {...row} />
-           ))}
-         </TableBody>
-       </Table>
-     </Box>
+      )}
+      {historicalBooks.length > 0 && (
+        <Box mt={4}>
+          <Typography
+            align='center'
+            component='h2'
+            gutterBottom
+            variant='h4'
+          >
+            History
+          </Typography>
+          <Table size='small'>
+            <TableHead>
+              <TableRow>
+                {historyHeaders.map((text) => (
+                  <TableCell key={text}>{text}</TableCell>
+                ))}
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {transactions.map(({ node }) => node.checkedIn && (
+                <HistoryRow key={node.id} {...node} />
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      )}
       <ConfirmDialog
         onClose={closeDialog}
         onConfirm={checkIn}

@@ -14,12 +14,16 @@ import { useQuery } from '@apollo/react-hooks';
 
 const QUERY = gql`
   {
-    books {
-      id
-      status {
-        status
+    allBooks(orderBy: TITLE_ASC) {
+      edges {
+        node {
+          id
+          statusByStatusId {
+            status
+          }
+          title
+        }
       }
-      title
     }
   }
 `;
@@ -32,14 +36,16 @@ const headers = [
 export default (props) => {
   const { history } = props;
   const { data, loading } = useQuery(QUERY);
-  const { books } = loading ? {} : data;
+  const { allBooks: books } = loading ? {} : data;
 
   const BookRow = (props) => {
     const {
       id,
-      status: { status },
+      statusByStatusId,
       title,
     } = props;
+
+    const status = statusByStatusId ? statusByStatusId.status : '';
 
     const bookUrl = constants.ADMIN_ROUTES.EDIT_BOOK.replace(':bookId', `${id}`);
     const goToBook = () => {
@@ -74,8 +80,8 @@ export default (props) => {
         </TableHead>
         {books && (
           <TableBody>
-            {books.map((row) => (
-              <BookRow key={row.id} {...row} />
+            {books.edges.map(({ node }) => (
+              <BookRow key={node.id} {...node} />
             ))}
           </TableBody>
         )}

@@ -2,8 +2,8 @@ import { grey } from '@material-ui/core/colors';
 
 export const SITE_TITLE = 'Library App';
 export const DEFAULT_CHECK_OUT_DAYS = 21;
-export const GRAPHQL_ENDPOINT = 'http://localhost:4000/graphql';
-export const DEFAULT_USER_ID = 1;
+export const GRAPHQL_ENDPOINT = 'https://polar-sands-10307.herokuapp.com/graphql';
+export const DEFAULT_USER_ID = '829a0b3a-b7af-49c1-984f-b293c17dd94e';
 
 export const ROUTES = {
   ACCOUNT: '/account',
